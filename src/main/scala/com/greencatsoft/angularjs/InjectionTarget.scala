@@ -5,12 +5,10 @@ import scala.scalajs.js
 
 trait InjectionTarget {
 
-  def dependencies: Seq[String] = Nil
-
-  def inject(args: Seq[js.Any]): Unit = Unit
-
   def initialize(): Unit
 }
+
+trait ConfigurableTarget[A] extends InjectionTarget with Function0[A]
 
 object InjectionTarget {
 
@@ -21,7 +19,7 @@ object InjectionTarget {
       .filter(_.isTerm)
       .map(_.asTerm)
       .filter(_.isVar)
-      .filter(_.annotations.exists(_.tree.tpe =:= typeOf[Inject]))
+      .filter(_.annotations.exists(_.tree.tpe =:= typeOf[inject]))
 
     members map {
       member =>

@@ -5,9 +5,9 @@ import scala.scalajs.js
 
 import org.scalajs.dom.Element
 
-import com.greencatsoft.angularjs.element.AngularElement
-
 trait Angular extends js.Object {
+
+  def module(name: String): Module = ???
 
   def module(name: String, require: js.Array[String]): Module = ???
 
