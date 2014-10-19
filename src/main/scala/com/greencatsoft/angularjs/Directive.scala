@@ -1,16 +1,16 @@
 package com.greencatsoft.angularjs
 
-import scala.language.experimental.macros
 import scala.language.implicitConversions
 import scala.reflect.macros.blackbox.Context
-
 import scala.scalajs.js
-import scala.scalajs.js.Any.{ fromFunction4, wrapArray }
+import scala.scalajs.js.Any.{fromBoolean, fromFunction2, fromFunction4, fromString, wrapArray}
 import scala.scalajs.js.UndefOr
 import scala.scalajs.js.UndefOr.undefOr2ops
-import org.scalajs.dom.Element
-import com.greencatsoft.angularjs.core.Scoped
 import scala.scalajs.js.annotation.JSBracketAccess
+
+import org.scalajs.dom
+
+import com.greencatsoft.angularjs.core.Scoped
 
 trait Directive extends NamedTarget with ConfigurableTarget[js.Dictionary[js.Any]]
   with Scoped with Configurable {
@@ -29,7 +29,7 @@ trait Directive extends NamedTarget with ConfigurableTarget[js.Dictionary[js.Any
       scope
     }
 
-    config("link") = (scope: ScopeType, elems: js.Array[Element], attrs: Attributes, controllers: UndefOr[js.Any]) => {
+    config("link") = (scope: ScopeType, elems: js.Array[dom.Element], attrs: Attributes, controllers: UndefOr[js.Any]) => {
       controllers.toOption match {
         case Some(arr) if js.Array.isArray(arr) =>
           val args = arr.asInstanceOf[js.Array[js.Any]].toSeq.map(Module.unbindTarget[Controller](_)).flatten
@@ -55,7 +55,7 @@ trait Directive extends NamedTarget with ConfigurableTarget[js.Dictionary[js.Any
     super.buildConfig(config)
   }
 
-  def link(scope: ScopeType, elems: Seq[Element], attrs: Attributes, controller: Controller*): Unit = Unit
+  def link(scope: ScopeType, elems: Seq[dom.Element], attrs: Attributes, controller: Controller*): Unit = Unit
 }
 
 protected[angularjs] object Directive extends InjectionMacro[Directive] {

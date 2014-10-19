@@ -2,9 +2,17 @@ package com.greencatsoft.angularjs
 
 import scala.reflect.macros.blackbox.Context
 
+import scala.scalajs.js
+
 import com.greencatsoft.angularjs.core.ScopeAware
 
-trait Controller extends NamedTarget with ScopeAware
+trait Controller extends NamedTarget with ScopeAware {
+
+  abstract override def initialize() {
+    super.initialize()
+    scope.dynamic.controller = this.asInstanceOf[js.Object]
+  }
+}
 
 abstract class AbstractController(name: String)
   extends AbstractNamedTarget(name) with Controller

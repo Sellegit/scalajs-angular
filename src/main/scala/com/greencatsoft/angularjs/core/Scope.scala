@@ -44,17 +44,14 @@ trait Scoped {
 
 trait ScopeAware extends InjectionTarget with Scoped {
 
-  var currentScope: Option[ScopeType] = None
-
   @inject
-  private var scope: ScopeType = _
+  var rawScope: Scope = _
+
+  implicit var scope: ScopeType = _
 
   override def initialize() {
-    scope.dynamic.controller = this.asInstanceOf[js.Object]
-
-    this.currentScope = Some(scope)
-
-    currentScope.foreach(initialize(_))
+    this.scope = rawScope.asInstanceOf[ScopeType]
+    initialize(scope)
   }
 
   def initialize(scope: ScopeType): Unit = Unit
@@ -66,7 +63,14 @@ trait RootScope extends Scope
 trait RootScopeAware extends InjectionTarget with Scoped {
 
   @inject
+  var rawRootScope: RootScope = _
+
   implicit var rootScope: ScopeType = _
 
   override type ScopeType <: RootScope
+
+  abstract override def initialize() {
+    this.rootScope = rawRootScope.asInstanceOf[ScopeType]
+    initialize()
+  }
 }
