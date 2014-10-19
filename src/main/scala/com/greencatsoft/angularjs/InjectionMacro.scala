@@ -13,7 +13,6 @@ protected[angularjs] trait InjectionMacro[A <: InjectionTarget] {
       val argType = member.paramLists.head.head.typeSignature.dealias.typeSymbol
 
       val normalizedType = Option(argType.typeSignature) collect {
-        //case TypeBounds(_, upper) => upper.typeSymbol.asType
         case ClassInfoType(_, _, sym) => sym.asType
       }
 
