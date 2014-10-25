@@ -100,7 +100,7 @@ trait HttpPromise extends Promise {
 
 object HttpPromise {
 
-  implicit def promise2future[T](promise: Promise): Future[T] = new HttpFuture[T](promise)
+  implicit def promise2future[A](promise: Promise): Future[A] = new HttpFuture[A](promise)
 
   trait HttpResult extends js.Object {
 
@@ -113,22 +113,22 @@ object HttpPromise {
     val statusText: String = ???
   }
 
-  class HttpFuture[T](promise: Promise) extends Future[T] {
+  class HttpFuture[A](promise: Promise) extends Future[A] {
 
-    type Listener[U] = Try[T] => U
+    type Listener[U] = Try[A] => U
 
-    private var result: Option[Try[T]] = None
+    private var result: Option[Try[A]] = None
 
     private var listeners: Seq[Listener[_]] = Seq.empty
 
-    private def notify(result: Try[T]): Option[Try[T]] = {
+    private def notify(result: Try[A]): Option[Try[A]] = {
       listeners.foreach(_(result))
       Some(result)
     }
 
     promise `then` { (r: js.Any) =>
       val httpResult = r.asInstanceOf[HttpResult]
-      this.result = notify(Success(httpResult.data.asInstanceOf[T]))
+      this.result = notify(Success(httpResult.data.asInstanceOf[A]))
       r
     } `catch` { (error: js.Any) =>
       val httpResult = error.asInstanceOf[HttpResult]
@@ -138,7 +138,7 @@ object HttpPromise {
     override def ready(atMost: Duration)(implicit permit: CanAwait): this.type =
       throw new UnsupportedOperationException
 
-    override def result(atMost: Duration)(implicit permit: CanAwait): T =
+    override def result(atMost: Duration)(implicit permit: CanAwait): A =
       throw new UnsupportedOperationException
 
     override def isCompleted: Boolean = result.isDefined
@@ -146,6 +146,6 @@ object HttpPromise {
     override def onComplete[U](f: Listener[U])(implicit executor: ExecutionContext): Unit =
       listeners +:= f
 
-    override def value: Option[Try[T]] = result
+    override def value: Option[Try[A]] = result
   }
 }

@@ -1,13 +1,19 @@
 package com.greencatsoft.angularjs
 
 import scala.language.implicitConversions
-import scala.scalajs.js
+import scala.scalajs.js.JSConverters.genTravConvertible2JSRichGenTrav
 
-trait Angular extends js.Object {
+import org.scalajs.dom.Element
 
-  def module(name: String): Module = ???
+object Angular {
 
-  def module(name: String, require: js.Array[String]): Module = ???
+  import internal.angular
 
-  implicit def element(elem: Element): Element
+  def apply(name: String): Option[Module] =
+    angular.module(name).toOption.map(new Module(_))
+
+  def module(name: String, dependencies: Seq[String] = Nil): Module =
+    new Module(angular.module(name, dependencies.toJSArray))
+
+  implicit def element(elem: Element): AngularElement = angular.element(elem)
 }

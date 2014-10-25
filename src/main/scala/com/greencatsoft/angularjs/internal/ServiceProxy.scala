@@ -1,10 +1,29 @@
-package com.greencatsoft.angularjs
+package com.greencatsoft.angularjs.internal
 
 import scala.reflect.macros.blackbox.Context
+import scala.scalajs.js
+import scala.scalajs.js.Any.fromString
+import scala.scalajs.js.UndefOr
+import scala.scalajs.js.UndefOr.{ any2undefOrA, undefOr2ops }
 
-protected[angularjs] trait InjectionMacro[A <: InjectionTarget] {
+import com.greencatsoft.angularjs.{ Service, injectable }
 
-  protected[angularjs] def targets[T <: A](c: Context)(implicit tag: c.WeakTypeTag[T]): Iterable[(String, c.universe.TypeSymbol, c.universe.MethodSymbol)] = {
+object ServiceProxy {
+
+  def bind(service: js.Any, target: Service) {
+    try {
+      service.asInstanceOf[js.Dynamic]._ng_service_proxy = target.asInstanceOf[js.Object]
+    } catch {
+      case _: Throwable =>
+    }
+  }
+
+  def unbind[A <: Service](service: js.Any): Option[A] = {
+    val target: UndefOr[Any] = service.asInstanceOf[js.Dynamic]._ng_service_proxy
+    target.map(_.asInstanceOf[A]).toOption
+  }
+
+  def dependencies[A <: Service](c: Context)(implicit tag: c.WeakTypeTag[A]): Iterable[(String, c.universe.TypeSymbol, c.universe.MethodSymbol)] = {
     import c.universe._
 
     val members = tag.tpe.members collect { case m: MethodSymbol if m.isSetter => m }
@@ -30,14 +49,14 @@ protected[angularjs] trait InjectionMacro[A <: InjectionTarget] {
     names.toSeq.flatten
   }
 
-  def inject[T <: A](c: Context)(target: c.Expr[T])(implicit tag: c.WeakTypeTag[T]): c.Expr[ModuleProxy] = {
+  def newInstance[A <: Service](c: Context)(target: c.Expr[A])(implicit tag: c.WeakTypeTag[A]): c.Expr[js.Any] = {
     import c.universe._
 
-    val dependencies = targets[T](c) collect {
+    val names = dependencies[A](c) collect {
       case (name, _, _) => name
     }
 
-    val assignments = targets[T](c).zipWithIndex collect {
+    val assignments = dependencies[A](c).zipWithIndex collect {
       case ((_, argType, setter), index) =>
         val argument = List(Ident(TermName(s"a$index")))
         val value = TypeApply(
@@ -47,44 +66,42 @@ protected[angularjs] trait InjectionMacro[A <: InjectionTarget] {
         Apply(Select(target.tree, setter.asTerm), List(value))
     }
 
-    val handler = q"""{
+    val proxy = q"""{
       import scala.scalajs.js
       import scala.scalajs.js.UndefOr
       import scala.scalajs.js.JSConverters.JSRichOption
 
-      import com.greencatsoft.angularjs.{ ConfigurableTarget, InjectionTarget }
-      import com.greencatsoft.angularjs.Module.bindTarget
+      import com.greencatsoft.angularjs.{ Initializable, Service }
+      import com.greencatsoft.angularjs.internal.ServiceProxy
 
-      val target: InjectionTarget = $target
+      val target: Service = $target
 
       val handler: js.ThisFunction10[js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, UndefOr[js.Any]] = 
         (t: js.Any, a0: js.Any, a1: js.Any, a2: js.Any, a3: js.Any, a4: js.Any, a5: js.Any, a6: js.Any, a7: js.Any, a8: js.Any, a9: js.Any) => {
 
-        bindTarget(t, target)
+        ServiceProxy.bind(t, target)
 
         ..$assignments
 
-        target.initialize()
+        target match {
+          case init: Initializable => init.initialize()
+          case _ =>
+        }
 
         val result = target match {
-          case configurable: ConfigurableTarget[_] => configurable()
+          case configurable: Function0[_] => configurable()
           case _ => null
         }
 
         Option(result).map(_.asInstanceOf[js.Any]).orUndefined
       }
 
-      val dependencies = js.Array[js.Any](..$dependencies)
-      dependencies.push(handler)
+      val proxy = js.Array[js.Any](..$names)
 
-      handler.asInstanceOf[js.Dynamic].obj = target.asInstanceOf[js.Object]
-
-      ${register(c)(target)}
-      ${c.prefix.tree}
+      proxy.push(handler)
+      proxy
     }"""
 
-    c.Expr[ModuleProxy](handler)
+    c.Expr[js.Any](proxy)
   }
-
-  def register[T <: A](c: Context)(target: c.Expr[T]): c.universe.Tree
 }

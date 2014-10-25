@@ -2,7 +2,7 @@ package com.greencatsoft.angularjs.core
 
 import scala.scalajs.js
 
-import com.greencatsoft.angularjs.{ inject, injectable, InjectionTarget }
+import com.greencatsoft.angularjs.{ Initializable, Service, inject, injectable }
 
 @injectable("$scope")
 trait Scope extends js.Object {
@@ -33,6 +33,7 @@ trait Scope extends js.Object {
 }
 
 trait Scoped {
+  this: Service =>
 
   type ScopeType <: Scope
 
@@ -42,7 +43,8 @@ trait Scoped {
   }
 }
 
-trait ScopeAware extends InjectionTarget with Scoped {
+trait ScopeAware extends Initializable with Scoped {
+  this: Service =>
 
   @inject
   var rawScope: Scope = _
@@ -60,7 +62,8 @@ trait ScopeAware extends InjectionTarget with Scoped {
 @injectable("$rootScope")
 trait RootScope extends Scope
 
-trait RootScopeAware extends InjectionTarget with Scoped {
+trait RootScopeAware extends Initializable with Scoped {
+  this: Service =>
 
   @inject
   var rawRootScope: RootScope = _

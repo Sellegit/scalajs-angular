@@ -32,17 +32,17 @@ trait Defer extends js.Object {
 
 object Defer {
 
-  implicit def defer2promise[T](defer: Defer): scala.concurrent.Promise[T] = new DeferredPromise[T](defer)
+  implicit def defer2promise[A](defer: Defer): scala.concurrent.Promise[A] = new DeferredPromise[A](defer)
 
-  class DeferredPromise[T](defer: Defer) extends scala.concurrent.Promise[T] {
+  class DeferredPromise[A](defer: Defer) extends scala.concurrent.Promise[A] {
 
     private var completed = false
 
-    override def future: Future[T] = new Promise.DeferredFuture(defer.promise)
+    override def future: Future[A] = new Promise.DeferredFuture(defer.promise)
 
     override def isCompleted: Boolean = completed
 
-    override def tryComplete(result: Try[T]): Boolean = if (isCompleted) false else {
+    override def tryComplete(result: Try[A]): Boolean = if (isCompleted) false else {
       result match {
         case Success(r) =>
           defer.resolve(r.asInstanceOf[js.Any])
@@ -71,23 +71,23 @@ trait Promise extends js.Object {
 
 object Promise {
 
-  implicit def promise2future[T](promise: Promise): Future[T] = new DeferredFuture[T](promise)
+  implicit def promise2future[A](promise: Promise): Future[A] = new DeferredFuture[A](promise)
 
-  class DeferredFuture[T](promise: Promise) extends Future[T] {
+  class DeferredFuture[A](promise: Promise) extends Future[A] {
 
-    type Listener[U] = Try[T] => U
+    type Listener[U] = Try[A] => U
 
-    private var result: Option[Try[T]] = None
+    private var result: Option[Try[A]] = None
 
     private var listeners: Seq[Listener[_]] = Seq.empty
 
-    private def notify(result: Try[T]): Option[Try[T]] = {
+    private def notify(result: Try[A]): Option[Try[A]] = {
       listeners.foreach(_(result))
       Some(result)
     }
 
     promise `then` { (r: js.Any) =>
-      this.result = notify(Success(r.asInstanceOf[T]))
+      this.result = notify(Success(r.asInstanceOf[A]))
       r
     } `catch` { (error: js.Any) =>
       this.result = notify(Failure(JavaScriptException(error)))
@@ -96,7 +96,7 @@ object Promise {
     override def ready(atMost: Duration)(implicit permit: CanAwait): this.type =
       throw new UnsupportedOperationException
 
-    override def result(atMost: Duration)(implicit permit: CanAwait): T =
+    override def result(atMost: Duration)(implicit permit: CanAwait): A =
       throw new UnsupportedOperationException
 
     override def isCompleted: Boolean = result.isDefined
@@ -104,6 +104,6 @@ object Promise {
     override def onComplete[U](f: Listener[U])(implicit executor: ExecutionContext): Unit =
       listeners +:= f
 
-    override def value: Option[Try[T]] = result
+    override def value: Option[Try[A]] = result
   }
 }

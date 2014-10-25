@@ -1,41 +1,37 @@
 package com.greencatsoft.angularjs
 
+import scala.language.experimental.macros
 import scala.language.implicitConversions
-import scala.reflect.macros.blackbox.Context
 import scala.scalajs.js
-import scala.scalajs.js.Any.{fromBoolean, fromFunction2, fromFunction4, fromString, wrapArray}
+import scala.scalajs.js.Any.{ fromBoolean, fromFunction2, fromFunction4, fromString, wrapArray }
 import scala.scalajs.js.UndefOr
 import scala.scalajs.js.UndefOr.undefOr2ops
 import scala.scalajs.js.annotation.JSBracketAccess
 
-import org.scalajs.dom
+import org.scalajs.dom.Element
 
 import com.greencatsoft.angularjs.core.Scoped
+import com.greencatsoft.angularjs.internal.{ ConfigBuilder, Configuration, ServiceProxy }
 
-trait Directive extends NamedTarget with ConfigurableTarget[js.Dictionary[js.Any]]
-  with Scoped with Configurable {
+trait Directive extends NamedService with Function0[Configuration] with Scoped with ConfigBuilder {
 
-  type ControllerType <: Controller
+  import internal.{ Angular => angular }
 
-  val controller: Option[ControllerType] = None
+  override def apply(): Configuration = buildConfig()
 
-  override def initialize(): Unit = Unit
-
-  override def apply(): js.Dictionary[js.Any] = buildConfig()
-
-  override def buildConfig(config: js.Dictionary[js.Any]): js.Dictionary[js.Any] = {
+  override def buildConfig(config: Configuration): Configuration = {
     def bind(scope: ScopeType): ScopeType = {
       scope.dynamic.directive = this.asInstanceOf[js.Object]
       scope
     }
 
-    config("link") = (scope: ScopeType, elems: js.Array[dom.Element], attrs: Attributes, controllers: UndefOr[js.Any]) => {
+    config("link") = (scope: ScopeType, elems: js.Array[Element], attrs: Attributes, controllers: UndefOr[js.Any]) => {
       controllers.toOption match {
         case Some(arr) if js.Array.isArray(arr) =>
-          val args = arr.asInstanceOf[js.Array[js.Any]].toSeq.map(Module.unbindTarget[Controller](_)).flatten
+          val args = arr.asInstanceOf[js.Array[js.Any]].toSeq.map(ServiceProxy.unbind[Controller](_)).flatten
           link(bind(scope), elems, attrs, args: _*)
         case Some(c) =>
-          Module.unbindTarget[Controller](c) match {
+          ServiceProxy.unbind[Controller](c) match {
             case Some(arg) => link(bind(scope), elems, attrs, arg)
             case _ => link(bind(scope), elems, attrs)
           }
@@ -43,32 +39,16 @@ trait Directive extends NamedTarget with ConfigurableTarget[js.Dictionary[js.Any
       }
     }
 
-//    def inject(controller: ControllerType) = macro Controller.inject[ControllerType]
-//
-//    controller.foreach {
-//      c => Controller.inject[ControllerType]
-//    }
-//    controller foreach { c =>
-//      Module.asService(c) { args: js.Array[js.Any] => config("controller") = args }
-//    }
+    controller.foreach(config("controller") = _)
 
     super.buildConfig(config)
   }
 
-  def link(scope: ScopeType, elems: Seq[dom.Element], attrs: Attributes, controller: Controller*): Unit = Unit
-}
+  def controller(): Option[js.Any] = None
 
-protected[angularjs] object Directive extends InjectionMacro[Directive] {
+  protected def proxy[A <: Controller](target: A): js.Any = macro ServiceProxy.newInstance[A]
 
-  override def inject[T <: Directive](c: Context)(target: c.Expr[T])(implicit tag: c.WeakTypeTag[T]): c.Expr[ModuleProxy] =
-    super.inject[T](c)(target)
-
-  override def register[T <: Directive](c: Context)(target: c.Expr[T]): c.universe.Tree = {
-    import c.universe._
-
-    val name = Select(target.tree, TermName("name"))
-    q"${c.prefix.tree}.module.directive($name, dependencies)"
-  }
+  def link(scope: ScopeType, elems: Seq[Element], attrs: Attributes, controller: Controller*): Unit = Unit
 }
 
 trait Attributes extends js.Object {
@@ -94,12 +74,12 @@ trait Attributes extends js.Object {
   def $observe(key: String, fn: js.Function1[String, Unit]): Unit = ???
 }
 
-trait Requires extends Configurable {
+trait Requires extends ConfigBuilder {
   this: Directive =>
 
   var requirements = Set.empty[Requirement]
 
-  abstract override def buildConfig(config: js.Dictionary[js.Any]): js.Dictionary[js.Any] = {
+  abstract override def buildConfig(config: Configuration): Configuration = {
     config("require") = js.Array[String](requirements.toSeq.map(_.toString): _*)
 
     super.buildConfig(config)
@@ -110,20 +90,20 @@ trait Requires extends Configurable {
     override def toString = (if (lookup) "^" else "") + (if (optional) "?" else "") + name
   }
 
-  def ^(requirement: NamedTarget) = new Requirement(requirement.name, true)
+  def ^(requirement: NamedService) = new Requirement(requirement.name, true)
 
-  def ^?(requirement: NamedTarget) = new Requirement(requirement.name, true, true)
+  def ^?(requirement: NamedService) = new Requirement(requirement.name, true, true)
 
-  def ?(requirement: NamedTarget) = new Requirement(requirement.name, false, true)
+  def ?(requirement: NamedService) = new Requirement(requirement.name, false, true)
 
-  implicit def ~(requirement: NamedTarget) = new Requirement(requirement.name, false)
+  implicit def ~(requirement: NamedService) = new Requirement(requirement.name, false)
 }
 
-trait RestrictedDirective extends Directive with Configurable {
+trait RestrictedDirective extends Directive with ConfigBuilder {
 
   def restrict: Set[String] = Set.empty
 
-  abstract override def buildConfig(config: js.Dictionary[js.Any]): js.Dictionary[js.Any] = {
+  abstract override def buildConfig(config: Configuration): Configuration = {
     config("restrict") = restrict.mkString
 
     super.buildConfig(config)
@@ -138,7 +118,7 @@ trait ElementDirective extends RestrictedDirective {
 
   var replace = false
 
-  abstract override def buildConfig(config: js.Dictionary[js.Any]): js.Dictionary[js.Any] = {
+  abstract override def buildConfig(config: Configuration): Configuration = {
     config("transclude") = transclude
     config("replace") = replace
 
@@ -161,14 +141,14 @@ trait CommentDirective extends RestrictedDirective {
   override def restrict = super.restrict + "M"
 }
 
-trait ScopeStrategy extends Configurable {
+trait ScopeStrategy extends ConfigBuilder {
   this: Directive =>
 }
 
 trait InheritParentScope extends ScopeStrategy {
   this: Directive =>
 
-  override def buildConfig(config: js.Dictionary[js.Any]): js.Dictionary[js.Any] = {
+  override def buildConfig(config: Configuration): Configuration = {
     config("scope") = true
 
     super.buildConfig(config)
@@ -178,7 +158,7 @@ trait InheritParentScope extends ScopeStrategy {
 trait UseParentScope extends ScopeStrategy {
   this: Directive =>
 
-  override def buildConfig(config: js.Dictionary[js.Any]): js.Dictionary[js.Any] = {
+  override def buildConfig(config: Configuration): Configuration = {
     config("scope") = false
 
     super.buildConfig(config)
@@ -190,7 +170,7 @@ trait IsolatedScope extends ScopeStrategy {
 
   var bindings = Seq.empty[ScopeBinding]
 
-  override def buildConfig(config: js.Dictionary[js.Any]): js.Dictionary[js.Any] = {
+  override def buildConfig(config: Configuration): Configuration = {
     val dict = js.Dictionary.empty[String]
 
     bindings foreach { b =>
@@ -225,29 +205,27 @@ trait IsolatedScope extends ScopeStrategy {
   }
 }
 
-trait TemplateProvider extends Configurable {
+trait TemplatedDirective extends ConfigBuilder with Templated {
   this: Directive =>
 
-  val template: String
+  def getTemplateUrl(elems: Seq[AngularElement], attrs: Attributes): String = templateUrl
 
-  def getTemplate(elems: Seq[Element], attrs: Attributes): String = template
-
-  abstract override def buildConfig(config: js.Dictionary[js.Any]): js.Dictionary[js.Any] = {
-    config("template") = (elems: js.Array[Element], attrs: Attributes) => getTemplate(elems, attrs)
+  abstract override def buildConfig(config: Configuration): Configuration = {
+    config("templateUrl") = (elems: js.Array[AngularElement], attrs: Attributes) => getTemplateUrl(elems, attrs)
 
     super.buildConfig(config)
   }
 }
 
-trait TemplateUrlProvider extends Configurable {
+trait TemplateSourceDirective extends ConfigBuilder with TemplateSource {
   this: Directive =>
 
-  val templateUrl: String
+  val template: String
 
-  def getTemplateUrl(elems: Seq[Element], attrs: Attributes): String = templateUrl
+  def getTemplate(elems: Seq[AngularElement], attrs: Attributes): String = template
 
-  abstract override def buildConfig(config: js.Dictionary[js.Any]): js.Dictionary[js.Any] = {
-    config("templateUrl") = (elems: js.Array[Element], attrs: Attributes) => getTemplateUrl(elems, attrs)
+  abstract override def buildConfig(config: Configuration): Configuration = {
+    config("template") = (elems: js.Array[AngularElement], attrs: Attributes) => getTemplate(elems, attrs)
 
     super.buildConfig(config)
   }
