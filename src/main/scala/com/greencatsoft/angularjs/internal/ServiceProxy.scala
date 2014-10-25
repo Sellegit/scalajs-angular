@@ -6,7 +6,7 @@ import scala.scalajs.js.Any.fromString
 import scala.scalajs.js.UndefOr
 import scala.scalajs.js.UndefOr.{ any2undefOrA, undefOr2ops }
 
-import com.greencatsoft.angularjs.{ Service, injectable }
+import com.greencatsoft.angularjs.{ Service, inject, injectable }
 
 object ServiceProxy {
 
@@ -25,6 +25,14 @@ object ServiceProxy {
 
   def dependencies[A <: Service](c: Context)(implicit tag: c.WeakTypeTag[A]): Iterable[(String, c.universe.TypeSymbol, c.universe.MethodSymbol)] = {
     import c.universe._
+
+//    Should check if @inject annotation is present:
+//
+//    val members = tag.tpe.members filter {
+//      _.annotations.exists(_.tree.tpe =:= typeOf[inject])
+//    } collect {
+//      case m: MethodSymbol if m.isSetter => m
+//    }
 
     val members = tag.tpe.members collect { case m: MethodSymbol if m.isSetter => m }
 
