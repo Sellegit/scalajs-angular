@@ -4,3 +4,6 @@ target
 .settings
 .cache
 .README.md.html
+.DS_Store
+.idea/
+.idea_modules/
