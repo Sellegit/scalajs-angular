@@ -77,3 +77,4 @@ trait RouteInfo extends js.Object {
 
   var scope: Scope = ???
 }
+

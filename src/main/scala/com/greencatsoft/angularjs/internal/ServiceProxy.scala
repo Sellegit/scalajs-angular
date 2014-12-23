@@ -36,6 +36,10 @@ object ServiceProxy {
 
     val members = tag.tpe.members collect { case m: MethodSymbol if m.isSetter => m }
 
+//    System.out.println("!!!====================================================\n")
+//    System.out.println(members.toString())
+//    System.out.println("----------------------------------------------------\n")
+
     val names = members map { member =>
       val argType = member.paramLists.head.head.typeSignature.dealias.typeSymbol
 
@@ -54,6 +58,8 @@ object ServiceProxy {
       members.toSeq.flatten
     }
 
+//    System.out.println(names.toString())
+//    System.out.println("!!!----------------------------------------------------\n")
     names.toSeq.flatten
   }
 
@@ -71,7 +77,7 @@ object ServiceProxy {
           Select(q"..$argument", TermName("asInstanceOf")),
           List(Ident(c.mirror.staticClass(argType.fullName))))
 
-        Apply(Select(target.tree, setter.asTerm), List(value))
+        Apply(Select(q"target", setter.asTerm), List(value))
     }
 
     val proxy = q"""{
@@ -84,24 +90,29 @@ object ServiceProxy {
 
       val target: Service = $target
 
-      val handler: js.ThisFunction10[js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, UndefOr[js.Any]] = 
+      val handler: js.ThisFunction10[js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, js.Any, UndefOr[js.Any]] =
         (t: js.Any, a0: js.Any, a1: js.Any, a2: js.Any, a3: js.Any, a4: js.Any, a5: js.Any, a6: js.Any, a7: js.Any, a8: js.Any, a9: js.Any) => {
 
-        ServiceProxy.bind(t, target)
+        try {
+          ServiceProxy.bind(t, target)
 
-        ..$assignments
+          ..$assignments
 
-        target match {
-          case init: Initializable => init.initialize()
-          case _ =>
+          target match {
+            case init: Initializable => init.initialize()
+            case _ =>
+          }
+
+          val result = target match {
+            case configurable: Function0[_] => configurable()
+            case injected: Injected => injected.run()
+            case _ => null
+          }
+
+          Option(result).map(_.asInstanceOf[js.Any]).orUndefined
+        } catch {
+          case e: Exception => js.eval("debugger"); Option(js.eval("undefined")).orUndefined
         }
-
-        val result = target match {
-          case configurable: Function0[_] => configurable()
-          case _ => null
-        }
-
-        Option(result).map(_.asInstanceOf[js.Any]).orUndefined
       }
 
       val proxy = js.Array[js.Any](..$names)

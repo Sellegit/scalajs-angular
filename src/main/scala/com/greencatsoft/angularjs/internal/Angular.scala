@@ -7,7 +7,7 @@ import scala.scalajs.js.UndefOr
 import org.scalajs.dom.Element
 
 import com.greencatsoft.{ angularjs => api }
-import com.greencatsoft.angularjs.{ AngularElement, Config, Controller, Directive, Factory, NamedService, Runnable }
+import com.greencatsoft.angularjs._
 
 import ServiceProxy.newInstance
 
@@ -20,7 +20,7 @@ private[angularjs] trait Angular extends js.Object {
   def element(elem: Element): AngularElement = ???
 }
 
-private[angularjs] object Angular {
+object Angular {
 
   import ServiceProxy.newInstance
 
@@ -75,4 +75,17 @@ private[angularjs] object Angular {
 
     c.Expr[api.Module](q"{${c.prefix.tree}.module.service($name, $proxy); ${c.prefix.tree}}")
   }
+
+  def injectImpl[A <: Injected](c: Context)(target: c.Expr[A])(implicit tag: c.WeakTypeTag[A]): c.Expr[InjectedTransformed] = {
+    import ServiceProxy.newInstance
+    import c.universe._
+
+
+    val proxy = newInstance(c)(target)
+
+//    System.out.println(proxy.toString())
+
+    c.Expr[InjectedTransformed](q"InjectedTransformed($proxy)")
+  }
 }
+
