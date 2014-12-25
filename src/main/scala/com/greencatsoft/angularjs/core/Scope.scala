@@ -29,6 +29,8 @@ trait Scope extends js.Object {
 
   def $watch(watchExpression: js.Any, listener: js.Any = null, objectEquality: Boolean = false): js.Function = ???
 
+  def $watchGroup(watchExpressions: js.Array[js.Any], listener: js.Any): js.Function = ???
+
   def $watchCollection(obj: js.Any, listener: js.Function): js.Function = ???
 }
 

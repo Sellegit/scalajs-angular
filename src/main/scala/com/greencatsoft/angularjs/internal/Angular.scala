@@ -38,6 +38,7 @@ object Angular {
     val proxy = newInstance(c)(target)
     val name = Select(target.tree, TermName("name"))
 
+//    println(proxy.toString())
     c.Expr[api.Module](q"{${c.prefix.tree}.module.controller($name, $proxy); ${c.prefix.tree}}")
   }
 

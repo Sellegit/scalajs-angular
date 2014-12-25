@@ -6,7 +6,7 @@ import scala.scalajs.js.Any.fromString
 import scala.scalajs.js.UndefOr
 import scala.scalajs.js.UndefOr.{ any2undefOrA, undefOr2ops }
 
-import com.greencatsoft.angularjs.{ Service, inject, injectable }
+import com.greencatsoft.angularjs.{resolve, Service, inject, injectable}
 
 object ServiceProxy {
 
@@ -34,26 +34,50 @@ object ServiceProxy {
 //      case m: MethodSymbol if m.isSetter => m
 //    }
 
+//        val hehe = tag.tpe.members filter {
+//          _.annotations.exists(_.tree.tpe =:= typeOf[resolve])
+//        }
+//    println("hehe")
+//
+//        println(hehe)
+//    println(hehe.map(_.typeSignature))
+//    println(hehe.map(_.getClass))
     val members = tag.tpe.members collect { case m: MethodSymbol if m.isSetter => m }
+
+//    val membersAndSetters = tag.tpe.members filter {
+//      _.annotations.exists(_.tree.tpe =:= typeOf[resolve] || _.tree.tpe =:= typeOf[inject])
+//    } map {
+//      (_, _.setter)
+//    }
+    val membersAndSetters = tag.tpe.members collect {
+      case m: TermSymbol if m.setter.isInstanceOf[MethodSymbol] => (m, m.setter.asInstanceOf[MethodSymbol])
+    } groupBy {_._2} map {_._2.head}
 
 //    System.out.println("!!!====================================================\n")
 //    System.out.println(members.toString())
 //    System.out.println("----------------------------------------------------\n")
 
-    val names = members map { member =>
+    val names = membersAndSetters map { case (privateMember, member) =>
+      println(member)
+      println(member.annotations)
       val argType = member.paramLists.head.head.typeSignature.dealias.typeSymbol
 
-      val normalizedType = Option(argType.typeSignature) collect {
-        case ClassInfoType(_, _, sym) => sym.asType
-      }
 
-      val annotations = normalizedType.map(_.annotations).toSeq.flatten.filter(_.tree.tpe =:= typeOf[injectable])
-
-      val members = normalizedType map { n =>
-        n.annotations.filter(_.tree.tpe =:= typeOf[injectable]).map(_.tree.children.tail) collect {
-          case List(Literal(Constant(literal: String))) => (literal, n.asType, member)
+      val members = for (
+        normalized <- Option(argType.typeSignature) collect {
+          case ClassInfoType(_, _, sym) => sym.asType
         }
-      }
+      ) yield if (privateMember.annotations.exists(_.tree.tpe =:= typeOf[resolve])) {
+          println("has resolve")
+          privateMember.annotations.filter(_.tree.tpe =:= typeOf[resolve]).map(_.tree.children.tail) collect {
+            case List(Literal(Constant(literal: String))) => (literal, normalized.asType, member)
+          }
+        } else {
+          println("no resolve")
+          normalized.annotations.filter(_.tree.tpe =:= typeOf[injectable]).map(_.tree.children.tail) collect {
+            case List(Literal(Constant(literal: String))) => (literal, normalized.asType, member)
+          }
+        }
 
       members.toSeq.flatten
     }
